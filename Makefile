@@ -12,6 +12,11 @@ GOBIN = ./build/bin
 GO ?= latest
 GORUN = env GO111MODULE=on go run
 
+teller:
+	$(GORUN) build/ci.go install ./cmd/teller
+	@echo "Done building."
+	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+
 geth:
 	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."

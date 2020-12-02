@@ -89,7 +89,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, evm *vm.EVM) (*types.Receipt, error) {
 	// Create a new context to be used in the EVM environment
-	txContext := NewEVMTxContext(msg)
+	// txContext := NewEVMTxContext(msg)
+	txContext := NewEVMDebugTxContext(msg, tx)
 	// Add addresses to access list if applicable
 	if config.IsYoloV2(header.Number) {
 		statedb.AddAddressToAccessList(msg.From())
@@ -148,6 +149,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, author)
-	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
+	// vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
+	vmenv := vm.NewTellerEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
 	return applyTransaction(msg, config, bc, author, gp, statedb, header, tx, usedGas, vmenv)
 }

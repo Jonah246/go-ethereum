@@ -139,7 +139,14 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 // considered a revert-and-consume-all-gas operation except for
 // ErrExecutionReverted which means revert-and-keep-gas-left.
 func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (ret []byte, err error) {
-
+	if in.evm.teller != nil {
+		in.evm.teller.CheckAndLog(contract.CallerAddress, contract.Address(), input, in.evm.TxContext.Hash, in.evm.Context.BlockNumber.Int64())
+	}
+	// fmt.Println("Running in interpreter", "caller",
+	// 	contract.caller.Address().Hex(), "self", contract.self.Address().Hex(),
+	// 	// "input", input, "tx", in.evm.Tx,
+	// 	// "config", in.evm.vmConfig.Tracer,
+	// )
 	// Increment the call depth which is restricted to 1024
 	in.evm.depth++
 	defer func() { in.evm.depth-- }()
