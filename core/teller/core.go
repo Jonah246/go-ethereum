@@ -28,7 +28,6 @@ type UniswapPair struct {
 
 var globalTellerCore *tellerCore
 var once sync.Once
-var deFaultAddress = [...]string{}
 
 // core Teller that all tellers share.
 type tellerCore struct {
@@ -120,7 +119,10 @@ func (t *tellerCore) stop() {
 	t.logIndex = 0
 }
 
-func (t *tellerCore) checkAndLog(caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) {
+func (t *tellerCore) checkAndLog(
+	caller common.Address, callee common.Address, input []byte,
+	txHash common.Hash, txOrigin common.Address, blockNumber int64) bool {
+	isFound := false
 	for _, w := range t.WatchList {
 		if w.Match(callee, input) {
 			t.appendLog(TellerLog{
@@ -131,8 +133,10 @@ func (t *tellerCore) checkAndLog(caller common.Address, callee common.Address, i
 				Origin:      txOrigin,
 				BlockNumber: blockNumber,
 			})
+			isFound = true
 		}
 	}
+	return isFound
 }
 
 func (t *tellerCore) appendLog(log TellerLog) {
@@ -155,4 +159,11 @@ func (t *tellerCore) appendLog(log TellerLog) {
 		t.Log[0] = log
 		t.logIndex = 1
 	}
+}
+
+func (t *tellerCore) checkAndMutate(res []byte, caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) []byte {
+	if caller.Hex() == "0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852" {
+		fmt.Println("0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852: input", input, res)
+	}
+	return res
 }

@@ -157,13 +157,17 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 
-	teller *teller.Teller
+	Teller *teller.Teller
 }
 
-func NewTellerEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
+func NewTellerEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config, isMutate bool) *EVM {
 	evm := NewEVM(blockCtx, txCtx, statedb, chainConfig, vmConfig)
-	evm.teller = teller.NewTeller()
+	evm.Teller = teller.NewTeller(isMutate)
 	return evm
+}
+
+func (evm *EVM) VmConfig() Config {
+	return evm.vmConfig
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should

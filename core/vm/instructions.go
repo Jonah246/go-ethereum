@@ -806,7 +806,6 @@ func opReturn(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]
 func opRevert(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
 	offset, size := callContext.stack.pop(), callContext.stack.pop()
 	ret := callContext.memory.GetPtr(int64(offset.Uint64()), int64(size.Uint64()))
-
 	return ret, nil
 }
 
@@ -836,14 +835,18 @@ func makeLog(size int) executionFunc {
 		}
 
 		d := callContext.memory.GetCopy(int64(mStart.Uint64()), int64(mSize.Uint64()))
-		interpreter.evm.StateDB.AddLog(&types.Log{
+		newLog := types.Log{
 			Address: callContext.contract.Address(),
 			Topics:  topics,
 			Data:    d,
 			// This is a non-consensus field, but assigned here because
 			// core/state doesn't know the current block number.
 			BlockNumber: interpreter.evm.Context.BlockNumber.Uint64(),
-		})
+		}
+		if interpreter.cfg.Debug {
+			interpreter.cfg.Tracer.CaptureLog(newLog)
+		}
+		interpreter.evm.StateDB.AddLog(&newLog)
 
 		return nil, nil
 	}

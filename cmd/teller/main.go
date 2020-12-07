@@ -150,13 +150,13 @@ import (
 // }
 
 func testTeller() {
-	t := teller.NewTeller()
+	t := teller.NewTeller(false)
 	adr := common.HexToAddress("0xbb2b8038a1640196fbe3e38816f3e67cba72d940")
 	input := common.FromHex("0x5909c0d5aabbccdd")
 	tx := common.HexToHash("0xa6dddac3e6ee2e579301b097d3ebc22cbc0a07e4974dbc8ebf523236a27f2b47")
 
 	for i := 1; i <= 100; i += 1 {
-		t.CheckAndLog(adr, adr, input, tx, int64(i))
+		t.CheckAndLog(adr, adr, input, tx, adr, int64(i))
 	}
 }
 

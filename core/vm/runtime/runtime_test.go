@@ -326,6 +326,8 @@ type stepCounter struct {
 	steps int
 }
 
+func (s *stepCounter) CaptureLog(stateLog types.Log) {}
+
 func (s *stepCounter) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {
 	return nil
 }

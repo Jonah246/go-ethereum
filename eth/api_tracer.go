@@ -833,6 +833,7 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 			Failed:      result.Failed(),
 			ReturnValue: returnVal,
 			StructLogs:  ethapi.FormatLogs(tracer.StructLogs()),
+			StateLogs:   ethapi.FormatStateLogs(tracer.StateLogs()),
 		}, nil
 
 	case *tracers.Tracer:

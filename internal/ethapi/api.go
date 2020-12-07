@@ -19,6 +19,7 @@ package ethapi
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -1066,15 +1067,17 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs, bl
 // while replaying a transaction in debug mode as well as transaction
 // execution status, the amount of gas used and the return value
 type ExecutionResult struct {
-	Gas         uint64         `json:"gas"`
-	Failed      bool           `json:"failed"`
-	ReturnValue string         `json:"returnValue"`
-	StructLogs  []StructLogRes `json:"structLogs"`
+	Gas         uint64              `json:"gas"`
+	Failed      bool                `json:"failed"`
+	ReturnValue string              `json:"returnValue"`
+	StructLogs  []StructLogRes      `json:"structLogs"`
+	StateLogs   []StructStateLogRes `json:"stateLogs"`
 }
 
 // StructLogRes stores a structured log emitted by the EVM while replaying a
 // transaction in debug mode
 type StructLogRes struct {
+	Address string             `jeon:"address"`
 	Pc      uint64             `json:"pc"`
 	Op      string             `json:"op"`
 	Gas     uint64             `json:"gas"`
@@ -1086,11 +1089,38 @@ type StructLogRes struct {
 	Storage *map[string]string `json:"storage,omitempty"`
 }
 
+type StructStateLogRes struct {
+	Address     string   `json:"address"`
+	Topics      []string `json:"topics"`
+	Data        string   `json:"data"`
+	BlockNumber uint64   `json:"blockNumber"`
+}
+
+// FormatStateLogs formats statedb log
+func FormatStateLogs(logs []types.Log) []StructStateLogRes {
+	formatted := make([]StructStateLogRes, len(logs))
+	for index, log := range logs {
+		formattedTopics := make([]string, len(log.Topics))
+		for i, t := range log.Topics {
+			formattedTopics[i] = t.Hex()
+		}
+
+		formatted[index] = StructStateLogRes{
+			Address:     log.Address.Hex(),
+			Data:        hex.EncodeToString(log.Data),
+			BlockNumber: log.BlockNumber,
+			Topics:      formattedTopics,
+		}
+	}
+	return formatted
+}
+
 // FormatLogs formats EVM returned structured logs for json output
 func FormatLogs(logs []vm.StructLog) []StructLogRes {
 	formatted := make([]StructLogRes, len(logs))
 	for index, trace := range logs {
 		formatted[index] = StructLogRes{
+			Address: trace.Address,
 			Pc:      trace.Pc,
 			Op:      trace.Op.String(),
 			Gas:     trace.Gas,

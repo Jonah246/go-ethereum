@@ -139,8 +139,10 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 // considered a revert-and-consume-all-gas operation except for
 // ErrExecutionReverted which means revert-and-keep-gas-left.
 func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (ret []byte, err error) {
-	if in.evm.teller != nil {
-		in.evm.teller.CheckAndLog(contract.CallerAddress, contract.Address(), input, in.evm.TxContext.Hash, in.evm.Context.BlockNumber.Int64())
+	if in.evm.Teller != nil && !in.evm.Teller.IsMutate() {
+		in.evm.Teller.CheckAndLog(
+			contract.CallerAddress, contract.Address(), input,
+			in.evm.TxContext.Hash, in.evm.TxContext.Origin, in.evm.Context.BlockNumber.Int64())
 	}
 	// fmt.Println("Running in interpreter", "caller",
 	// 	contract.caller.Address().Hex(), "self", contract.self.Address().Hex(),
@@ -292,9 +294,15 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 
 		// execute the operation
 		res, err = operation.execute(&pc, in, callContext)
+
 		// if the operation clears the return data (e.g. it has returning data)
 		// set the last return to the result of the operation.
 		if operation.returns {
+			if in.evm.Teller != nil {
+				res = in.evm.Teller.CheckAndMutate(
+					res, contract.CallerAddress, contract.Address(), input,
+					in.evm.TxContext.Hash, in.evm.TxContext.Origin, in.evm.Context.BlockNumber.Int64())
+			}
 			in.returnData = common.CopyBytes(res)
 		}
 

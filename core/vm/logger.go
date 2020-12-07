@@ -63,6 +63,7 @@ type LogConfig struct {
 // StructLog is emitted to the EVM each cycle and lists information about the current internal state
 // prior to the execution of the statement.
 type StructLog struct {
+	Address       string                      `json:"address"`
 	Pc            uint64                      `json:"pc"`
 	Op            OpCode                      `json:"op"`
 	Gas           uint64                      `json:"gas"`
@@ -86,6 +87,7 @@ type structLogMarshaling struct {
 	GasCost     math.HexOrDecimal64
 	Memory      hexutil.Bytes
 	ReturnData  hexutil.Bytes
+	Address     string `json:"address"`
 	OpName      string `json:"opName"` // adds call to OpName() in MarshalJSON
 	ErrorString string `json:"error"`  // adds call to ErrorString() in MarshalJSON
 }
@@ -112,6 +114,7 @@ type Tracer interface {
 	CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error
 	CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, rStack *ReturnStack, rData []byte, contract *Contract, depth int, err error) error
 	CaptureFault(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, rStack *ReturnStack, contract *Contract, depth int, err error) error
+	CaptureLog(stateLog types.Log)
 	CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error) error
 }
 
@@ -123,10 +126,11 @@ type Tracer interface {
 type StructLogger struct {
 	cfg LogConfig
 
-	storage map[common.Address]Storage
-	logs    []StructLog
-	output  []byte
-	err     error
+	storage   map[common.Address]Storage
+	logs      []StructLog
+	stateLogs []types.Log
+	output    []byte
+	err       error
 }
 
 // NewStructLogger returns a new logger
@@ -143,6 +147,10 @@ func NewStructLogger(cfg *LogConfig) *StructLogger {
 // CaptureStart implements the Tracer interface to initialize the tracing operation.
 func (l *StructLogger) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {
 	return nil
+}
+
+func (l *StructLogger) CaptureLog(stateLog types.Log) {
+	l.stateLogs = append(l.stateLogs, stateLog)
 }
 
 // CaptureState logs a new structured log message and pushes it out to the environment
@@ -204,7 +212,7 @@ func (l *StructLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost ui
 		copy(rdata, rData)
 	}
 	// create a new snapshot of the EVM.
-	log := StructLog{pc, op, gas, cost, mem, memory.Len(), stck, rstack, rdata, storage, depth, env.StateDB.GetRefund(), err}
+	log := StructLog{contract.Address().Hex(), pc, op, gas, cost, mem, memory.Len(), stck, rstack, rdata, storage, depth, env.StateDB.GetRefund(), err}
 	l.logs = append(l.logs, log)
 	return nil
 }
@@ -227,6 +235,9 @@ func (l *StructLogger) CaptureEnd(output []byte, gasUsed uint64, t time.Duration
 	}
 	return nil
 }
+
+// StateLogs returns the captured receipt logs.
+func (l *StructLogger) StateLogs() []types.Log { return l.stateLogs }
 
 // StructLogs returns the captured log entries.
 func (l *StructLogger) StructLogs() []StructLog { return l.logs }
@@ -304,6 +315,8 @@ func NewMarkdownLogger(cfg *LogConfig, writer io.Writer) *mdLogger {
 	}
 	return l
 }
+
+func (t *mdLogger) CaptureLog(stateLog types.Log) {}
 
 func (t *mdLogger) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {
 	if !create {

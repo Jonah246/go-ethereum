@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type JSONLogger struct {
@@ -44,6 +45,8 @@ func NewJSONLogger(cfg *LogConfig, writer io.Writer) *JSONLogger {
 func (l *JSONLogger) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {
 	return nil
 }
+
+func (l *JSONLogger) CaptureLog(stateLog types.Log) {}
 
 // CaptureState outputs state information on the logger.
 func (l *JSONLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, rStack *ReturnStack, rData []byte, contract *Contract, depth int, err error) error {
