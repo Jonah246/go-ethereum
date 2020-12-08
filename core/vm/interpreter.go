@@ -298,12 +298,15 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		// if the operation clears the return data (e.g. it has returning data)
 		// set the last return to the result of the operation.
 		if operation.returns {
-			if in.evm.Teller != nil {
+			in.returnData = common.CopyBytes(res)
+		}
+
+		if in.evm.Teller != nil {
+			if operation.halts {
 				res = in.evm.Teller.CheckAndMutate(
 					res, contract.CallerAddress, contract.Address(), input,
 					in.evm.TxContext.Hash, in.evm.TxContext.Origin, in.evm.Context.BlockNumber.Int64())
 			}
-			in.returnData = common.CopyBytes(res)
 		}
 
 		switch {

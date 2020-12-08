@@ -1,6 +1,7 @@
 package teller
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -80,7 +81,9 @@ func (t *Teller) IsMutate() bool {
 func (t *Teller) CheckAndLog(caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) {
 	ret := t.core.checkAndLog(caller, callee, input, txHash, txOrigin, blockNumber)
 	if ret {
-		fmt.Printf("found on tx :%s\n", txHash.Hex())
+		// if len(input) > 4 {
+		fmt.Printf("found on tx :%s %s\n", txHash.Hex(), hex.EncodeToString(input[:4]))
+		// }
 		t.isFound = true
 	}
 }

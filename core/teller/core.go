@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -161,9 +163,29 @@ func (t *tellerCore) appendLog(log TellerLog) {
 	}
 }
 
+func decodeHelper(signature []byte, ret []byte) (interface{}, error) {
+	abi, err := abi.JSON(strings.NewReader(UNISWAP_PAIR_ABI))
+	if err != nil {
+		return nil, err
+	}
+	method, err := abi.MethodById(signature)
+	if err != nil {
+		return nil, err
+	}
+	return abi.Unpack(method.Name, ret)
+}
+
 func (t *tellerCore) checkAndMutate(res []byte, caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) []byte {
-	if caller.Hex() == "0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852" {
-		fmt.Println("0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852: input", input, res)
+	if len(input) >= 4 {
+		if bytes.Compare(input[:4], common.FromHex("0x0902f1ac")) == 0 {
+			fmt.Println("return of get reserves ", res)
+			if ret, err := decodeHelper(input[:4], res); err != nil {
+				fmt.Println(ret)
+			}
+		}
+		//  else {
+		// 	fmt.Println("is not ", hex.EncodeToString(input[:4]))
+		// }
 	}
 	return res
 }
