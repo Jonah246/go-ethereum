@@ -24,11 +24,11 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/teller"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -113,15 +113,37 @@ func replayTransaction(msg types.Message, txContext vm.TxContext,
 		fmt.Println("Different from the original result", execResult, gasLeft)
 		return
 	}
-
 	tracerResult, err := tracer.GetResult()
 	if err != nil {
 		fmt.Printf("error when getting result from the tracer.")
 	}
 	evm.Teller.LogDetail(tracerResult, txContext.Hash)
 
-	if bytes.Compare(result.ReturnData, execResult.ReturnData) != 0 {
-		log.Info("Found different")
+	if evm.Teller.Mutated() {
+		var errMsg string
+		if execResult.Err != nil {
+			errMsg = execResult.Err.Error()
+		}
+		mutailDetail := teller.MutateDetail{
+			IsDifference: bytes.Compare(result.ReturnData, execResult.ReturnData) != 0,
+			TxStatus:     execResult.Err == nil,
+			TxErrMsg:     errMsg,
+		}
+		evm.Teller.InsertMutateState(txContext.Hash, mutailDetail)
+
+		// if bytes.Compare(result.ReturnData, execResult.ReturnData) == 0 {
+		// 	fmt.Printf("No different: %s\n", txContext.Hash.Hex())
+		// } else {
+		// 	fmt.Printf("Different: %s\n", txContext.Hash.Hex())
+		// }
+		// if result.Err != execResult.Err {
+		// 	fmt.Println("Different: ", result.Err, execResult.Err)
+		// }
+	} else {
+		evm.Teller.InsertMutateState(txContext.Hash, teller.MutateDetail{
+			IsDifference: false,
+			TxStatus:     !execResult.Failed(),
+		})
 	}
 }
 

@@ -5,15 +5,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"math/big"
 	"strings"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"gorm.io/gorm"
 )
 
-const LogPath = "/home/bft/go-ethereum/tellerLog/"
+const LogPath = "/home/jonah1005/contract/tellerLog/"
 
 type WatchAddress struct {
 	Address   common.Address
@@ -37,12 +38,18 @@ type tellerCore struct {
 	Log       []TellerLog
 	mu        *sync.Mutex
 
+	db       *gorm.DB
 	logIndex int
 	logSize  int
 }
 
 func newTellerCore() *tellerCore {
 	once.Do(func() {
+		db, err := getDbConnection()
+		if err != nil {
+			panic(err)
+		}
+
 		logSize := 100
 		data := struct {
 			Data UniswapData `jons:"data"`
@@ -82,6 +89,7 @@ func newTellerCore() *tellerCore {
 			Log:       make([]TellerLog, logSize),
 			logSize:   logSize,
 			logIndex:  0,
+			db:        db,
 		}
 	})
 	return globalTellerCore
@@ -100,25 +108,29 @@ func (w WatchAddress) Match(address common.Address, input []byte) bool {
 	return bytes.Compare(w.Signature, input[:len(w.Signature)]) == 0
 }
 
+func (t *tellerCore) DB() *gorm.DB {
+	return t.db
+}
+
 func (t *tellerCore) stop() {
+
 	if t.logIndex == 0 {
 		return
 	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	filePath := fmt.Sprintf("%s%v_clean.json", LogPath, t.Log[0].BlockNumber)
-	b, err := json.MarshalIndent(t.Log, "", "")
-	if err != nil {
-		fmt.Println("Err:", err)
-		return
-	}
-	ioutil.WriteFile(filePath, b, 0644)
-	fmt.Printf("write %v logs into %s\n", t.logSize, filePath)
-	// t.WriteToFile()
+	t.db.Create(t.Log)
 	t.Log = make([]TellerLog, t.logSize)
 	t.logIndex = 0
+
+	sqlDB, err := t.db.DB()
+	if err != nil {
+		panic(err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		panic(err)
+	}
 }
 
 func (t *tellerCore) checkAndLog(
@@ -128,11 +140,11 @@ func (t *tellerCore) checkAndLog(
 	for _, w := range t.WatchList {
 		if w.Match(callee, input) {
 			t.appendLog(TellerLog{
-				TxHash:      txHash,
-				Caller:      caller,
-				Callee:      callee,
+				TxHash:      txHash.Hex(),
+				Caller:      caller.Hex(),
+				Callee:      callee.Hex(),
 				Input:       hex.EncodeToString(input),
-				Origin:      txOrigin,
+				Origin:      txOrigin.Hex(),
 				BlockNumber: blockNumber,
 			})
 			isFound = true
@@ -146,25 +158,18 @@ func (t *tellerCore) appendLog(log TellerLog) {
 	defer t.mu.Unlock()
 	if t.logIndex < t.logSize {
 		t.Log[t.logIndex] = log
-		t.logIndex += 1
+		t.logIndex++
 	} else {
-		filePath := fmt.Sprintf("%s%v.json", LogPath, t.Log[0].BlockNumber)
-		b, err := json.MarshalIndent(t.Log, "", "")
-		if err != nil {
-			fmt.Println("Err:", err)
-			return
-		}
-		ioutil.WriteFile(filePath, b, 0644)
-		fmt.Printf("write %v logs into %s\n", t.logSize, filePath)
-		// t.WriteToFile()
+		t.db.Create(t.Log)
+
 		t.Log = make([]TellerLog, t.logSize)
 		t.Log[0] = log
 		t.logIndex = 1
 	}
 }
 
-func decodeHelper(signature []byte, ret []byte) (interface{}, error) {
-	abi, err := abi.JSON(strings.NewReader(UNISWAP_PAIR_ABI))
+func DecodeHelper(signature []byte, ret []byte) (interface{}, error) {
+	abi, err := abi.JSON(strings.NewReader(uniswap_pair_abi))
 	if err != nil {
 		return nil, err
 	}
@@ -175,17 +180,49 @@ func decodeHelper(signature []byte, ret []byte) (interface{}, error) {
 	return abi.Unpack(method.Name, ret)
 }
 
-func (t *tellerCore) checkAndMutate(res []byte, caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) []byte {
+func encodeHelper(signature []byte, args []interface{}) ([]byte, error) {
+	abi, err := abi.JSON(strings.NewReader(uniswap_pair_abi))
+	if err != nil {
+		return nil, err
+	}
+	method, err := abi.MethodById(signature)
+	if err != nil {
+		return nil, err
+	}
+	return abi.Pack(method.Name, args)
+}
+
+func (t *tellerCore) insertMutateState(txHash common.Hash, detail MutateDetail) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i, l := range t.Log {
+		if l.TxHash == txHash.Hex() {
+			t.Log[i].MutateDetail = detail
+			t.Log[i].Mutated = true
+		}
+	}
+}
+
+func (t *tellerCore) checkAndMutate(res []byte, caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) (ret []byte, isMutate bool) {
 	if len(input) >= 4 {
 		if bytes.Compare(input[:4], common.FromHex("0x0902f1ac")) == 0 {
-			fmt.Println("return of get reserves ", res)
-			if ret, err := decodeHelper(input[:4], res); err != nil {
-				fmt.Println(ret)
+			if ret, err := DecodeHelper(input[:4], res); err == nil {
+				args := ret.([]interface{})
+				_, ok := args[0].(*big.Int)
+				if ok {
+					args[0] = args[0].(*big.Int).Mul(args[0].(*big.Int), big.NewInt(11))
+					args[0] = args[0].(*big.Int).Div(args[0].(*big.Int), big.NewInt(10))
+					if res, err := encodeHelper(input[:4], args); err != nil {
+						return res, true
+					}
+				}
+
+			}
+		} else if bytes.Compare(input[:4], common.FromHex("0x5a3d5493")) == 0 {
+			if ret, err := DecodeHelper(input[:4], res); err == nil {
+				fmt.Printf("Type: %T, %v", ret, ret)
 			}
 		}
-		//  else {
-		// 	fmt.Println("is not ", hex.EncodeToString(input[:4]))
-		// }
 	}
-	return res
+	return res, false
 }

@@ -526,7 +526,14 @@ func wrapError(context string, err error) error {
 	return fmt.Errorf("%v    in server-side tracer function '%v'", err, context)
 }
 
-func (jst *Tracer) CaptureLog(stateLog types.Log) {}
+func (jst *Tracer) CaptureLog(stateLog types.Log) {
+	jsonData, err := json.Marshal(&stateLog)
+	if err != nil {
+		panic(err)
+	}
+	jst.ctx["event"] = jsonData
+	jst.call("log", "event")
+}
 
 // CaptureStart implements the Tracer interface to initialize the tracing operation.
 func (jst *Tracer) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {

@@ -1,8 +1,15 @@
 package main
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core/teller"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/node"
 )
 
 // const blockNum = 11331495
@@ -40,16 +47,16 @@ import (
 // 	return st, nil
 // }
 
-// func printCall(call callTrace, depth int) {
-// 	for i := 0; i < depth; i++ {
-// 		fmt.Printf("--- ")
-// 	}
-// 	fmt.Printf("Type: %s, From: %s, To: %s PC: %v depth: %v\n",
-// 		call.Type, call.From.Hex(), call.To.Hex(), call.Pc, depth)
-// 	for _, v := range call.Calls {
-// 		printCall(v, depth+1)
-// 	}
-// }
+// // func printCall(call callTrace, depth int) {
+// // 	for i := 0; i < depth; i++ {
+// // 		fmt.Printf("--- ")
+// // 	}
+// // 	fmt.Printf("Type: %s, From: %s, To: %s PC: %v depth: %v\n",
+// // 		call.Type, call.From.Hex(), call.To.Hex(), call.Pc, depth)
+// // 	for _, v := range call.Calls {
+// // 		printCall(v, depth+1)
+// // 	}
+// // }
 
 // func parseTracerResult(res json.RawMessage) error {
 // 	var ret callTrace
@@ -134,20 +141,20 @@ import (
 // 	return parseTracerResult(res)
 // }
 
-// type callTrace struct {
-// 	Type    string          `json:"type"`
-// 	From    common.Address  `json:"from"`
-// 	To      common.Address  `json:"to"`
-// 	Input   hexutil.Bytes   `json:"input"`
-// 	Output  hexutil.Bytes   `json:"output"`
-// 	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
-// 	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
-// 	Value   *hexutil.Big    `json:"value,omitempty"`
-// 	Pc      int             `json:"pc"`
-// 	Error   string          `json:"error,omitempty"`
-// 	Calls   []callTrace     `json:"calls,omitempty"`
-// 	Logs    []string        `json:"logs"`
-// }
+type callTrace struct {
+	Type    string          `json:"type"`
+	From    common.Address  `json:"from"`
+	To      common.Address  `json:"to"`
+	Input   hexutil.Bytes   `json:"input"`
+	Output  hexutil.Bytes   `json:"output"`
+	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
+	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
+	Value   *hexutil.Big    `json:"value,omitempty"`
+	Pc      int             `json:"pc"`
+	Error   string          `json:"error,omitempty"`
+	Calls   []callTrace     `json:"calls,omitempty"`
+	Logs    []string        `json:"logs"`
+}
 
 func testTeller() {
 	t := teller.NewTeller(false)
@@ -160,9 +167,54 @@ func testTeller() {
 	}
 }
 
+func testABI() {
+	ret := common.FromHex("00000000000000000000000000000000000000000000000000111dfe17d416a00000000000000000000000000000000000000000000000e04128cf275d19a250000000000000000000000000000000000000000000000000000000005fcf3b28")
+	r, e := teller.DecodeHelper(common.FromHex("0x0902f1ac"), ret)
+	fmt.Println(e)
+	myMap := r.([]interface{})
+	for k, v := range myMap {
+		fmt.Println(k, v)
+	}
+	fmt.Printf("Type :%t", r)
+
+}
+
+func testTraceTx() error {
+	n, err := node.New(&node.Config{})
+	if err != nil {
+		return err
+	}
+	// Create Ethereum Service
+	config := &eth.Config{}
+	config.Ethash.PowMode = ethash.ModeFake
+	ethservice, err := eth.New(n, config)
+	if err != nil {
+		return err
+	}
+	// service, _ := eth.New()
+	api := eth.NewPrivateDebugAPI(ethservice)
+	timeout := "1m"
+	tracer := "callTracer"
+	if err != nil {
+		return err
+	}
+	_, err = api.TraceTransaction(
+		context.Background(),
+		common.HexToHash("0x8bb8dc5c7c830bac85fa48acad2505e9300a91c3ff239c9517d0cae33b595090"),
+		&eth.TraceConfig{
+			Timeout: &timeout,
+			Tracer:  &tracer,
+		})
+	return err
+}
+
 func main() {
-	grace()
-	// tell := teller.NewTeller()
+	fmt.Println(testTraceTx())
+	// for i := 0; i < 200; i++ {
+	// 	tell.AppendLog(teller.TellerLog{
+	// 		TxHash: common.HexToHash("0xff"),
+	// 	})
+	// }
 	// for _, k := range tell.WatchList {
 	// 	fmt.Println(k.Address.Hex())
 	// }

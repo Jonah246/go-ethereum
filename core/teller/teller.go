@@ -1,13 +1,11 @@
 package teller
 
 import (
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"gorm.io/gorm"
 )
 
 type Teller struct {
@@ -15,6 +13,7 @@ type Teller struct {
 
 	isMutate bool
 	isFound  bool
+	mutated  bool
 }
 
 // NewTeller returns a teller object that wraps the global shared tellerCore
@@ -23,16 +22,32 @@ func NewTeller(isMutate bool) *Teller {
 	return &Teller{
 		core:     newTellerCore(),
 		isMutate: isMutate,
+		mutated:  false,
 	}
 }
 
 type TellerLog struct {
-	TxHash      common.Hash
-	Origin      common.Address
-	Caller      common.Address
-	Callee      common.Address
+	gorm.Model
+	// TxHash      common.Hash
+	TxHash      string
+	Origin      string
+	Caller      string
+	Callee      string
 	Input       string
 	BlockNumber int64
+	Mutated     bool
+
+	MutateDetail MutateDetail `gorm:"embedded"`
+}
+
+type MutateDetail struct {
+	IsDifference bool
+	TxStatus     bool
+	TxErrMsg     string
+}
+
+func (t *Teller) DB() *gorm.DB {
+	return t.core.DB()
 }
 
 func (t *Teller) Stop() {
@@ -41,6 +56,10 @@ func (t *Teller) Stop() {
 
 func (t *Teller) AppendLog(log TellerLog) {
 	t.core.appendLog(log)
+}
+
+func (t *Teller) InsertMutateState(txHash common.Hash, detail MutateDetail) {
+	t.core.insertMutateState(txHash, detail)
 }
 
 // callTrace is the result of a callTracer run.
@@ -57,17 +76,25 @@ type callTrace struct {
 	Calls   []callTrace     `json:"calls,omitempty"`
 }
 
-const LogDetailPath = "/home/bft/go-ethereum/tellerDetail"
+const LogDetailPath = "/home/jonah1005/contract/tellerDetail/"
 
 func (t *Teller) LogDetail(result json.RawMessage, txHash common.Hash) {
-	ioutil.WriteFile(fmt.Sprintf("%s/%s", LogDetailPath, txHash.Hex()), result, 0644)
+	// ioutil.WriteFile(fmt.Sprintf("%s/%s", LogDetailPath, txHash.Hex()), result, 0644)
 }
 
-func (t *Teller) CheckAndMutate(res []byte, caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) []byte {
+func (t *Teller) CheckAndMutate(res []byte, caller common.Address, callee common.Address, input []byte, txHash common.Hash, txOrigin common.Address, blockNumber int64) (ret []byte) {
 	if t.isMutate {
-		return t.core.checkAndMutate(res, caller, callee, input, txHash, txOrigin, blockNumber)
+		ret, mutated := t.core.checkAndMutate(res, caller, callee, input, txHash, txOrigin, blockNumber)
+		if mutated {
+			t.mutated = true
+		}
+		return ret
 	}
 	return res
+}
+
+func (t *Teller) Mutated() bool {
+	return t.mutated
 }
 
 func (t *Teller) IsFound() bool {
@@ -82,7 +109,7 @@ func (t *Teller) CheckAndLog(caller common.Address, callee common.Address, input
 	ret := t.core.checkAndLog(caller, callee, input, txHash, txOrigin, blockNumber)
 	if ret {
 		// if len(input) > 4 {
-		fmt.Printf("found on tx :%s %s\n", txHash.Hex(), hex.EncodeToString(input[:4]))
+		// fmt.Printf("found on tx :%s %s\n", txHash.Hex(), hex.EncodeToString(input[:4]))
 		// }
 		t.isFound = true
 	}

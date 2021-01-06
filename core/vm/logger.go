@@ -157,29 +157,30 @@ func (l *StructLogger) CaptureLog(stateLog types.Log) {
 //
 // CaptureState also tracks SLOAD/SSTORE ops to track storage change.
 func (l *StructLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, rStack *ReturnStack, rData []byte, contract *Contract, depth int, err error) error {
+	// return nil
 	// check if already accumulated the specified number of logs
 	if l.cfg.Limit != 0 && l.cfg.Limit <= len(l.logs) {
 		return errTraceLimitReached
 	}
 	// Copy a snapshot of the current memory state to a new buffer
 	var mem []byte
-	if !l.cfg.DisableMemory {
-		mem = make([]byte, len(memory.Data()))
-		copy(mem, memory.Data())
-	}
+	// if !l.cfg.DisableMemory {
+	// 	mem = make([]byte, len(memory.Data()))
+	// 	copy(mem, memory.Data())
+	// }
 	// Copy a snapshot of the current stack state to a new buffer
 	var stck []*big.Int
-	if !l.cfg.DisableStack {
-		stck = make([]*big.Int, len(stack.Data()))
-		for i, item := range stack.Data() {
-			stck[i] = new(big.Int).Set(item.ToBig())
-		}
-	}
+	// if !l.cfg.DisableStack {
+	// 	stck = make([]*big.Int, len(stack.Data()))
+	// 	for i, item := range stack.Data() {
+	// 		stck[i] = new(big.Int).Set(item.ToBig())
+	// 	}
+	// }
 	var rstack []uint32
-	if !l.cfg.DisableStack && rStack != nil {
-		rstck := make([]uint32, len(rStack.data))
-		copy(rstck, rStack.data)
-	}
+	// if !l.cfg.DisableStack && rStack != nil {
+	// 	rstck := make([]uint32, len(rStack.data))
+	// 	copy(rstck, rStack.data)
+	// }
 	// Copy a snapshot of the current storage to a new container
 	var storage Storage
 	if !l.cfg.DisableStorage {

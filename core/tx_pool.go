@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"sort"
@@ -793,11 +794,14 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 		// Exclude transactions with invalid signatures as soon as
 		// possible and cache senders in transactions before
 		// obtaining lock
-		_, err := types.Sender(pool.signer, tx)
+		adr, err := types.Sender(pool.signer, tx)
 		if err != nil {
 			errs[i] = ErrInvalidSender
 			invalidTxMeter.Mark(1)
 			continue
+		}
+		if adr.Hex() == "0x000000000000006F6502B7F2bbaC8C30A3f67E9a" {
+			fmt.Printf("got tx:%s from: %s\n", tx.Hash().Hex(), adr.Hex())
 		}
 		// Accumulate all unknown transactions for deeper processing
 		news = append(news, tx)
