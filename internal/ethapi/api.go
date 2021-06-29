@@ -1775,6 +1775,38 @@ func (s *PublicTransactionPoolAPI) PendingTransactions() ([]*RPCTransaction, err
 	return transactions, nil
 }
 
+// Content returns the transactions contained within the transaction pool.
+func (s *PublicTxPoolAPI) ContentAddress(ctx context.Context, address *common.Address) map[string][]*RPCTransaction {
+	pending, queue := s.b.TxPoolContent()
+
+	var pendingTxs []*RPCTransaction
+	var queuedTxs []*RPCTransaction
+	pendingTxs = make([]*RPCTransaction, 0)
+	queuedTxs = make([]*RPCTransaction, 0)
+	// Flatten the pending transactions
+	for _, txs := range pending {
+		for _, tx := range txs {
+			if tx.To() != nil && tx.To().Hex() == address.Hex() {
+				pendingTxs = append(pendingTxs, newRPCPendingTransaction(tx))
+			}
+		}
+	}
+	// Flatten the queued transactions
+	for _, txs := range queue {
+		for _, tx := range txs {
+			if tx.To() != nil && tx.To().Hex() == address.Hex() {
+				queuedTxs = append(queuedTxs, newRPCPendingTransaction(tx))
+			}
+		}
+	}
+
+	content := map[string][]*RPCTransaction{
+		"pending": pendingTxs,
+		"queued":  queuedTxs,
+	}
+	return content
+}
+
 // Resend accepts an existing transaction and a new gas price and limit. It will remove
 // the given transaction from the pool and reinsert it with the new gas price and limit.
 func (s *PublicTransactionPoolAPI) Resend(ctx context.Context, sendArgs SendTxArgs, gasPrice *hexutil.Big, gasLimit *hexutil.Uint64) (common.Hash, error) {
